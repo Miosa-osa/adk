@@ -1,6 +1,6 @@
 {
   "name": "@miosa/adk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MIOSA Agent Development Kit — build LLM agents that use MIOSA sandboxes, desktops, and deploys out of the box",
   "license": "MIT",
   "author": "MIOSA <hello@miosa.ai>",
