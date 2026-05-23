@@ -1,0 +1,85 @@
+{
+  "name": "@miosa/adk",
+  "version": "0.2.0",
+  "description": "MIOSA Agent Development Kit — build LLM agents that use MIOSA sandboxes, desktops, and deploys out of the box",
+  "license": "MIT",
+  "author": "MIOSA <hello@miosa.ai>",
+  "homepage": "https://github.com/Miosa-osa/adk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Miosa-osa/adk.git"
+  },
+  "keywords": [
+    "miosa",
+    "ai-agents",
+    "agent-development-kit",
+    "adk",
+    "claude",
+    "anthropic",
+    "openai",
+    "gemini",
+    "groq",
+    "ollama",
+    "tool-use",
+    "agent-loop"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    },
+    "./providers/anthropic": {
+      "types": "./dist/providers/anthropic.d.ts",
+      "import": "./dist/providers/anthropic.js"
+    },
+    "./providers/openai-compatible": {
+      "types": "./dist/providers/openai-compatible.d.ts",
+      "import": "./dist/providers/openai-compatible.js"
+    },
+    "./providers/gemini": {
+      "types": "./dist/providers/gemini.d.ts",
+      "import": "./dist/providers/gemini.js"
+    },
+    "./providers/*": {
+      "types": "./dist/providers/*.d.ts",
+      "import": "./dist/providers/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "BUILDER_GUIDE.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": ">=0.30.0",
+    "@miosa/sdk": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.30.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": false
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3"
+  }
+}
