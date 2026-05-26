@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miosa-adk"
-version = "0.1.0"
-description = "Python Agent Development Kit for MIOSA sandboxes and builder products"
+version = "1.0.0"
+description = "Official Python Agent Development Kit for MIOSA — build LLM agents that natively use MIOSA sandboxes, desktop computers, and deployments with the tool-call loop pre-wired."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -16,19 +16,33 @@ keywords = [
     "miosa",
     "adk",
     "agents",
-    "sandboxes",
+    "ai-agents",
+    "llm",
+    "sandbox",
+    "firecracker",
+    "computer-use",
+    "tool-calling",
     "ai-app-builder",
     "lovable",
+    "claude",
+    "openai",
+    "anthropic",
+    "groq",
+    "mcp",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -36,15 +50,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+miosa = [
+    "miosa>=1.0.0",
+]
 dev = [
     "mypy>=1.10.0",
     "ruff>=0.5.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Miosa-osa/adk"
-Documentation = "https://github.com/Miosa-osa/adk/tree/main/python"
+Homepage = "https://miosa.ai"
+Documentation = "https://miosa.ai/docs/adk"
 Repository = "https://github.com/Miosa-osa/adk"
+Issues = "https://github.com/Miosa-osa/adk/issues"
+Changelog = "https://github.com/Miosa-osa/adk/blob/main/CHANGELOG.md"
+Source = "https://github.com/Miosa-osa/adk"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/miosa_adk"]
