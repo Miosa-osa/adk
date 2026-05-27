@@ -1,29 +1,13 @@
-# MIOSA ADK
+# @miosa/adk
 
 **Agent Development Kit for MIOSA.** Build LLM agents that natively use MIOSA
-sandboxes, desktops, and deploys with the tool-call loop already wired.
-
-This repo contains:
-
-- TypeScript package: `@miosa/adk`
-- Python package: `miosa-adk`
-
-The core use case is building your own Lovable-style products: AI website
-builders, app builders, artifact builders, slide deck builders, and vertical
-prompt-to-app tools.
-
-## Install
+sandboxes, desktops, and deploys — with the tool-call loop already wired.
 
 ```bash
 npm install @miosa/adk
-pip install "miosa-adk @ git+https://github.com/Miosa-osa/adk.git#subdirectory=python"
 ```
 
-For Python, the built-in MIOSA sandbox/computer tools require the MIOSA Python
-SDK to be installed separately. The ADK package itself can still be imported
-without it, which is useful for custom tool catalogues and provider adapters.
-
-## TypeScript 30-second example
+## 30-second example
 
 ```typescript
 import { Agent, groqProvider } from "@miosa/adk";
@@ -49,29 +33,6 @@ console.log(`Took ${result.steps.length} turns. Stopped because: ${result.stopRe
 That's it. The agent will boot a sandbox, write the file, run it, print the
 output, destroy the sandbox, and return. No tool-loop boilerplate.
 
-## Python 30-second example
-
-```python
-import os
-from miosa_adk import Agent, groq_provider
-
-agent = Agent(
-    provider=groq_provider(
-        api_key=os.environ["GROQ_API_KEY"],
-        model="moonshotai/kimi-k2-instruct-0905",
-    ),
-    miosa_api_key=os.environ["MIOSA_API_KEY"],
-)
-
-result = agent.run(
-    "Create a MIOSA sandbox, write a Python hello-world to /tmp/hello.py, "
-    "run it, then destroy the sandbox.",
-    max_iterations=10,
-)
-
-print(result.final_text)
-```
-
 ## ADK vs SDK — what's the difference
 
 - `@miosa/sdk` is a thin wrapper around the MIOSA REST API. You call methods
@@ -83,8 +44,6 @@ print(result.final_text)
 Use the SDK when you're writing application code that talks to MIOSA.
 Use the ADK when you're building an **agent** that should use MIOSA as
 its execution substrate.
-
-Python details live in [`python/`](./python).
 
 ## Built-in MIOSA tools
 

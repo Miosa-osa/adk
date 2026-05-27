@@ -1,29 +1,19 @@
 {
   "name": "@miosa/adk",
-  "version": "1.0.0",
-  "description": "Official Agent Development Kit for MIOSA — build LLM agents that natively use MIOSA sandboxes, desktop computers, and deployments with the tool-call loop pre-wired.",
+  "version": "0.2.0",
+  "description": "MIOSA Agent Development Kit — build LLM agents that use MIOSA sandboxes, desktops, and deploys out of the box",
   "license": "MIT",
   "author": "MIOSA <hello@miosa.ai>",
   "homepage": "https://miosa.ai/docs/adk",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Miosa-osa/adk.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Miosa-osa/adk/issues"
+    "url": "git+https://github.com/Miosa-osa/miosa.git"
   },
   "keywords": [
     "miosa",
     "ai-agents",
     "agent-development-kit",
     "adk",
-    "llm",
-    "sandbox",
-    "firecracker",
-    "computer-use",
-    "tool-calling",
-    "ai-app-builder",
-    "lovable",
     "claude",
     "anthropic",
     "openai",
@@ -31,8 +21,7 @@
     "groq",
     "ollama",
     "tool-use",
-    "agent-loop",
-    "mcp"
+    "agent-loop"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -75,7 +64,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": ">=0.30.0",
+    "@anthropic-ai/sdk": "^0.30.0",
     "@miosa/sdk": "^1.0.0"
   },
   "peerDependencies": {
