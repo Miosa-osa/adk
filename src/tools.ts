@@ -4,7 +4,7 @@
 import type { Miosa } from "@miosa/sdk";
 import type { Tool } from "./types.js";
 
-type ComputerSize = "small" | "medium" | "large";
+type ComputerSize = "xs" | "small" | "medium" | "large" | "xl";
 
 export interface MiosaToolOptions {
   /** Default template for create_sandbox. */
@@ -13,6 +13,10 @@ export interface MiosaToolOptions {
   computerTemplate?: string;
   /** Default VM size. */
   defaultSize?: ComputerSize;
+  /** Default interactive sandbox timeout in seconds. */
+  workspaceTimeoutSec?: number;
+  /** Default idle timeout in seconds. Activity should refresh this server-side. */
+  idleTimeoutSec?: number;
   /** Hide destructive lifecycle tools from the model. */
   allowDestroy?: boolean;
 }
@@ -23,7 +27,10 @@ interface ToolFactoryOptions extends MiosaToolOptions {
 }
 
 function asSize(v: unknown, fallback: ComputerSize): ComputerSize {
-  return v === "small" || v === "medium" || v === "large" ? v : fallback;
+  if (v === "xlarge") return "xl";
+  return v === "xs" || v === "small" || v === "medium" || v === "large" || v === "xl"
+    ? v
+    : fallback;
 }
 
 /**
@@ -36,6 +43,8 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
   const sandboxTemplate = opts.sandboxTemplate ?? "debian-12-sandbox-v8";
   const computerTemplate = opts.computerTemplate ?? "miosa-desktop";
   const defaultSize = opts.defaultSize ?? "small";
+  const workspaceTimeoutSec = opts.workspaceTimeoutSec ?? 86_400;
+  const idleTimeoutSec = opts.idleTimeoutSec ?? 1800;
   const allowDestroy = opts.allowDestroy ?? true;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -50,7 +59,7 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
         name: { type: "string", description: "Human-readable label" },
         size: {
           type: "string",
-          enum: ["small", "medium", "large", "xlarge"],
+          enum: ["xs", "small", "medium", "large", "xl"],
           default: "small",
         },
       },
@@ -59,12 +68,14 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     async execute(args) {
       const name = String(args["name"] ?? "");
       const size = asSize(args["size"], "small");
-      const computer = await client.computers.create({
+      const sandbox = await createSandboxWorkspace(client, {
         name,
         size,
-        template_type: sandboxTemplate,
+        template: sandboxTemplate,
+        timeoutSec: workspaceTimeoutSec,
+        idleTimeoutSec,
       });
-      return `Created sandbox id=${computer.id} status=${computer.status ?? "provisioning"}.`;
+      return `Created sandbox id=${sandbox.id} status=${sandbox.state ?? sandbox.status ?? "provisioning"}.`;
     },
   };
 
@@ -83,7 +94,7 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
         },
         size: {
           type: "string",
-          enum: ["small", "medium", "large", "xlarge"],
+          enum: ["xs", "small", "medium", "large", "xl"],
           default: defaultSize,
         },
       },
@@ -112,15 +123,15 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
         name: { type: "string" },
         size: {
           type: "string",
-          enum: ["small", "medium", "large", "xlarge"],
-          default: "medium",
+          enum: ["xs", "small", "medium", "large", "xl"],
+          default: "small",
         },
       },
       required: ["name"],
     },
     async execute(args) {
       const name = String(args["name"] ?? "");
-      const size = asSize(args["size"], "medium");
+      const size = asSize(args["size"], "small");
       const computer = await client.computers.create({
         name,
         size,
@@ -157,7 +168,12 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     },
     async execute(args) {
       const id = String(args["sandbox_id"] ?? "");
-      const c = await client.computers.get(id);
+      const s = await getSandboxTarget(client, id);
+      if (s.kind === "sandbox") {
+        const sb = s.target;
+        return `id=${sb.id} state=${sb.state ?? "?"} ready=${sb.ready ?? "?"} template=${sb.templateId ?? sb.template_id ?? "?"} preview_url=${sb.preview_url ?? sb.data?.preview_url ?? ""}`;
+      }
+      const c = s.target;
       return `id=${c.id} status=${c.status ?? "?"} template=${c.data.template_type ?? "?"} size=${c.data.size ?? "?"}`;
     },
   };
@@ -189,8 +205,79 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     },
     async execute(args) {
       const id = String(args["sandbox_id"] ?? "");
-      await client.computers.delete(id);
+      const sandboxes = sandboxNamespace(client);
+      if (sandboxes?.delete) await sandboxes.delete(id);
+      else await client.computers.delete(id);
       return `Destroyed ${id}.`;
+    },
+  };
+
+  const pause_sandbox: Tool = {
+    name: "pause_sandbox",
+    description:
+      "Pause a persistent sandbox workspace when the user is done for now. This preserves the filesystem so later work can resume.",
+    inputSchema: {
+      type: "object",
+      properties: { sandbox_id: { type: "string" } },
+      required: ["sandbox_id"],
+    },
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox" || typeof s.target.pause !== "function") {
+        return "Pause is only available on native MIOSA sandboxes.";
+      }
+      await s.target.pause();
+      return `Paused sandbox ${id}.`;
+    },
+  };
+
+  const resume_sandbox: Tool = {
+    name: "resume_sandbox",
+    description:
+      "Resume a paused persistent sandbox workspace before reading files, running commands, or restarting previews.",
+    inputSchema: {
+      type: "object",
+      properties: { sandbox_id: { type: "string" } },
+      required: ["sandbox_id"],
+    },
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox" || typeof s.target.resume !== "function") {
+        return "Resume is only available on native MIOSA sandboxes.";
+      }
+      await s.target.resume();
+      return `Resumed sandbox ${id}.`;
+    },
+  };
+
+  const extend_sandbox: Tool = {
+    name: "extend_sandbox",
+    description:
+      "Extend a running sandbox workspace before a long install, build, or agent task. Use pause_sandbox or snapshot_sandbox when the user is done for now.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sandbox_id: { type: "string" },
+        timeout_sec: {
+          type: "integer",
+          minimum: 1,
+          maximum: 86_400,
+          default: 86_400,
+        },
+      },
+      required: ["sandbox_id"],
+    },
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const timeoutSec = Number(args["timeout_sec"] ?? 86_400);
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox" || typeof s.target.extend !== "function") {
+        return "Extend is only available on native MIOSA sandboxes.";
+      }
+      await s.target.extend(timeoutSec);
+      return `Extended sandbox ${id} timeout to ${timeoutSec}s.`;
     },
   };
 
@@ -229,8 +316,11 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
       const id = String(args["sandbox_id"] ?? "");
       const command = String(args["command"] ?? "");
       const timeout = Number(args["timeout"] ?? 30);
-      const c = await client.computers.get(id);
-      const result = await c.exec.bash(command, timeout);
+      const target = await getSandboxTarget(client, id);
+      const result =
+        target.kind === "sandbox"
+          ? await runSandboxCommand(target.target, command, timeout)
+          : await target.target.exec.bash(command, timeout);
       return formatExecResult(result);
     },
   };
@@ -252,8 +342,11 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
       const id = String(args["sandbox_id"] ?? "");
       const code = String(args["code"] ?? "");
       const timeout = Number(args["timeout"] ?? 30);
-      const c = await client.computers.get(id);
-      const result = await c.exec.python(code, timeout);
+      const target = await getSandboxTarget(client, id);
+      const result =
+        target.kind === "sandbox"
+          ? await runSandboxCommand(target.target, `python3 - <<'PY'\n${code}\nPY`, timeout)
+          : await target.target.exec.python(code, timeout);
       return formatExecResult(result);
     },
   };
@@ -272,8 +365,12 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     async execute(args) {
       const id = String(args["sandbox_id"] ?? "");
       const path = String(args["path"] ?? "");
-      const c = await client.computers.get(id);
-      return c.files.readFile(path);
+      const target = await getSandboxTarget(client, id);
+      if (target.kind === "sandbox") {
+        if (target.target.files?.readText) return target.target.files.readText(path);
+        if (target.target.readFile) return target.target.readFile(path);
+      }
+      return target.target.files.readFile(path);
     },
   };
 
@@ -294,8 +391,13 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
       const id = String(args["sandbox_id"] ?? "");
       const path = String(args["path"] ?? "");
       const content = String(args["content"] ?? "");
-      const c = await client.computers.get(id);
-      await c.files.writeFile(path, content);
+      const target = await getSandboxTarget(client, id);
+      if (target.kind === "sandbox") {
+        if (target.target.files?.write) await target.target.files.write(path, content);
+        else await target.target.writeFile(path, content);
+      } else {
+        await target.target.files.writeFile(path, content);
+      }
       return `Wrote ${content.length} bytes to ${path}.`;
     },
   };
@@ -314,8 +416,11 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     async execute(args) {
       const id = String(args["sandbox_id"] ?? "");
       const path = String(args["path"] ?? "/home/user");
-      const c = await client.computers.get(id);
-      const result = await c.exec.bash(`ls -la ${shellQuote(path)}`, 10);
+      const target = await getSandboxTarget(client, id);
+      const result =
+        target.kind === "sandbox"
+          ? await runSandboxCommand(target.target, `ls -la ${shellQuote(path)}`, 10)
+          : await target.target.exec.bash(`ls -la ${shellQuote(path)}`, 10);
       return formatExecResult(result);
     },
   };
@@ -337,8 +442,98 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
       const id = String(args["sandbox_id"] ?? "");
       const port = Number(args["port"] ?? 0);
       const path = String(args["path"] ?? "/");
-      const c = await client.computers.get(id);
-      return c.previewUrl(port, path);
+      const target = await getSandboxTarget(client, id);
+      if (target.kind === "sandbox") {
+        const created =
+          target.target.previews?.create
+            ? await target.target.previews.create(port, { path })
+            : target.target.preview?.expose
+              ? await target.target.preview.expose(port)
+              : await target.target.expose(port);
+        return typeof created === "string"
+          ? created
+          : String(created.url ?? created.preview_url ?? "");
+      }
+      return target.target.previewUrl(port, path);
+    },
+  };
+
+  const snapshot_sandbox: Tool = {
+    name: "snapshot_sandbox",
+    description:
+      "Create a named checkpoint snapshot for a sandbox workspace after dependency install or a good edit.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sandbox_id: { type: "string" },
+        comment: { type: "string" },
+      },
+      required: ["sandbox_id"],
+    },
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const comment = String(args["comment"] ?? "agent checkpoint");
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox") return "Snapshots are only available on native MIOSA sandboxes.";
+      const snap = s.target.snapshots?.create
+        ? await s.target.snapshots.create(comment)
+        : await s.target.createSnapshot(comment);
+      return `Snapshot created: ${snap.id ?? snap.snapshot_id ?? JSON.stringify(snap)}`;
+    },
+  };
+
+  const deploy_sandbox: Tool = {
+    name: "deploy_sandbox",
+    description:
+      "Publish a sandbox workspace to a durable MIOSA deployment after preview/smoke tests pass.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sandbox_id: { type: "string" },
+        name: { type: "string" },
+        path: { type: "string", default: "/workspace" },
+        build_command: { type: "string" },
+        run_command: { type: "string" },
+        port: { type: "integer", minimum: 1, maximum: 65535 },
+      },
+      required: ["sandbox_id", "name"],
+    },
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox" || typeof s.target.deploy !== "function") {
+        return "Deploy is only available on native MIOSA sandboxes.";
+      }
+      const result = await s.target.deploy({
+        name: String(args["name"] ?? ""),
+        path: String(args["path"] ?? "/workspace"),
+        buildCommand: args["build_command"] ? String(args["build_command"]) : undefined,
+        runCommand: args["run_command"] ? String(args["run_command"]) : undefined,
+        port: args["port"] ? Number(args["port"]) : undefined,
+      });
+      return JSON.stringify(result);
+    },
+  };
+
+  const deploy_docker: Tool = {
+    name: "deploy_docker",
+    description:
+      "Publish a sandbox workspace through the workspace App Engine appliance. Use for many small workspace apps/lead magnets/funnels.",
+    inputSchema: deploy_sandbox.inputSchema,
+    async execute(args) {
+      const id = String(args["sandbox_id"] ?? "");
+      const s = await getSandboxTarget(client, id);
+      if (s.kind !== "sandbox") return "App Engine is only available on native MIOSA sandboxes.";
+      const deploy = s.target.deployDocker ?? ((params: Record<string, unknown>) =>
+        s.target.deploy({ ...params, deploymentType: "docker_deploy" }));
+      const result = await deploy.call(s.target, {
+        name: String(args["name"] ?? ""),
+        path: String(args["path"] ?? "/workspace"),
+        buildCommand: args["build_command"] ? String(args["build_command"]) : undefined,
+        runCommand: args["run_command"] ? String(args["run_command"]) : undefined,
+        port: args["port"] ? Number(args["port"]) : undefined,
+      });
+      return JSON.stringify(result);
     },
   };
 
@@ -355,6 +550,12 @@ export function miosaTools(opts: ToolFactoryOptions): Tool[] {
     write_file,
     list_files,
     preview_url,
+    pause_sandbox,
+    resume_sandbox,
+    extend_sandbox,
+    snapshot_sandbox,
+    deploy_sandbox,
+    deploy_docker,
   ];
   if (allowDestroy) tools.push(destroy_sandbox, destroy_computer);
   return tools;
@@ -375,4 +576,104 @@ function formatExecResult(result: unknown): string {
 function shellQuote(s: string): string {
   // Single-quote the string, escaping any embedded single quotes.
   return `'${s.replaceAll("'", "'\\''")}'`;
+}
+
+type AnyMiosa = Miosa & Record<string, unknown>;
+type AnyTarget = Record<string, any>;
+
+function sandboxNamespace(client: Miosa): AnyTarget | undefined {
+  const ns = (client as AnyMiosa)["sandboxes"];
+  return ns && typeof ns === "object" ? (ns as AnyTarget) : undefined;
+}
+
+async function createSandboxWorkspace(
+  client: Miosa,
+  opts: {
+    name: string;
+    size: ComputerSize;
+    template: string;
+    timeoutSec: number;
+    idleTimeoutSec: number;
+  },
+): Promise<AnyTarget> {
+  const sandboxes = sandboxNamespace(client);
+  if (sandboxes?.createAgentWorkspace) {
+    return sandboxes.createAgentWorkspace({
+      name: opts.name,
+      size: opts.size,
+      templateId: opts.template,
+      persistent: true,
+      timeoutSec: opts.timeoutSec,
+      idleTimeoutSec: opts.idleTimeoutSec,
+      snapshotExpirationDays: 30,
+      keepLastSnapshots: 1,
+    });
+  }
+  if (sandboxes?.getOrCreate) {
+    return sandboxes.getOrCreate({
+      name: opts.name,
+      size: opts.size,
+      templateId: opts.template,
+      persistent: true,
+      timeoutSec: opts.timeoutSec,
+      idleTimeoutSec: opts.idleTimeoutSec,
+      snapshotExpirationDays: 30,
+      keepLastSnapshots: 1,
+      waitUntilReady: true,
+    });
+  }
+  if (sandboxes?.create) {
+    return sandboxes.create({
+      name: opts.name,
+      size: opts.size,
+      templateId: opts.template,
+      persistent: true,
+      timeoutSec: opts.timeoutSec,
+      idleTimeoutSec: opts.idleTimeoutSec,
+      snapshotExpirationDays: 30,
+      keepLastSnapshots: 1,
+      metadata: {
+        miosa_workspace_kind: "agent_workspace",
+        miosa_persistent: true,
+      },
+    });
+  }
+
+  return client.computers.create({
+    name: opts.name,
+    size: opts.size,
+    template_type: opts.template,
+  });
+}
+
+async function getSandboxTarget(
+  client: Miosa,
+  id: string,
+): Promise<{ kind: "sandbox" | "computer"; target: AnyTarget }> {
+  const sandboxes = sandboxNamespace(client);
+  if (sandboxes?.get) {
+    try {
+      return { kind: "sandbox", target: await sandboxes.get(id) };
+    } catch {
+      // Fall through to legacy computer-backed sandboxes.
+    }
+  }
+  return { kind: "computer", target: await client.computers.get(id) };
+}
+
+async function runSandboxCommand(
+  sandbox: AnyTarget,
+  command: string,
+  timeout: number,
+): Promise<unknown> {
+  if (sandbox.exec?.run) {
+    return sandbox.exec.run(command, { timeout, timeoutSec: timeout });
+  }
+  if (typeof sandbox.exec === "function") {
+    return sandbox.exec(command, { timeout, timeoutSec: timeout });
+  }
+  if (sandbox.commands?.run) {
+    return sandbox.commands.run(command, { timeout, timeoutSec: timeout });
+  }
+  throw new Error("Sandbox target does not expose an exec runner.");
 }

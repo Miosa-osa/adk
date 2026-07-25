@@ -6,7 +6,7 @@ const agent = new Agent({
     model: "moonshotai/kimi-k2-instruct-0905",
   }),
   miosaApiKey: process.env.MIOSA_API_KEY!,
-  miosaTools: { defaultSize: "medium", allowDestroy: false },
+  miosaTools: { defaultSize: "small", allowDestroy: false },
 });
 
 const result = await agent.run({
