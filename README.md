@@ -62,6 +62,11 @@ When you pass `miosaApiKey`, the agent gets these tools out of the box:
 | `write_file` | Write a file inside the VM. |
 | `list_files` | List a directory inside the VM. |
 | `preview_url` | Get the public HTTPS URL for a service running on a port. |
+| `pause_sandbox` / `resume_sandbox` | Stop/resume a persistent workspace without deleting files. |
+| `extend_sandbox` | Extend the activity timeout before long installs, builds, or agent tasks. |
+| `snapshot_sandbox` | Create a checkpoint after dependency install or a good edit. |
+| `deploy_sandbox` | Publish to normal MIOSA Deploy. |
+| `deploy_docker` | Publish to the workspace App Engine appliance. |
 | `destroy_sandbox` / `destroy_computer` | Delete a computer and release resources. |
 
 Tool defaults are configurable:
@@ -74,7 +79,7 @@ const tools = miosaTools({
   client: new Miosa({ apiKey: process.env.MIOSA_API_KEY! }),
   sandboxTemplate: "debian-12-sandbox-v8",
   computerTemplate: "miosa-desktop",
-  defaultSize: "medium",
+  defaultSize: "small",
   allowDestroy: false,
 });
 ```

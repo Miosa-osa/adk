@@ -1,6 +1,6 @@
 {
   "name": "@miosa/adk",
-  "version": "0.2.0",
+  "version": "1.0.4",
   "description": "MIOSA Agent Development Kit — build LLM agents that use MIOSA sandboxes, desktops, and deploys out of the box",
   "license": "MIT",
   "author": "MIOSA <hello@miosa.ai>",
@@ -61,11 +61,12 @@
   ],
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
-    "@miosa/sdk": "^1.0.0"
+    "@miosa/sdk": "^2.0.3"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.30.0"
@@ -81,5 +82,6 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
